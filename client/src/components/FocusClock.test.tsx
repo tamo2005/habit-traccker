@@ -48,6 +48,18 @@ describe("FocusClock", () => {
     expect(screen.queryByRole("button", { name: "Start break" })).not.toBeNull();
   });
 
+  it("selects Pomodoro, long break, and custom timer modes", () => {
+    render(<FocusClock />);
+
+    expect(screen.getByRole("button", { name: "Pomodoro" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Long break" }));
+    expect(screen.queryByText("15:00")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Long break" }).getAttribute("aria-pressed")).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Custom" }));
+    expect(screen.getByRole("button", { name: "Custom" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
   it("announces completion and moves naturally from focus to break", () => {
     render(<FocusClock />);
 

@@ -8,6 +8,12 @@
 .focus-clock-heading, .clock-controls, .clock-duration-controls { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
 .focus-clock-heading h2 { margin: .2rem 0 0; font-size: clamp(1.35rem, 2vw, 1.85rem); letter-spacing: -.055em; }
 .focus-mode-tag { padding: .32rem .5rem; border: 1px solid rgba(34,36,31,.18); color: #20231f; font-size: .66rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.live-time { display: flex; align-items: baseline; gap: .35rem; margin-top: .9rem; color: #52544d; }
+.live-time time { color: #20231f; font-family: "Space Grotesk", sans-serif; font-size: 1.05rem; font-weight: 700; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.live-time span { color: #77746b; font-size: .66rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.timer-mode-selector { display: flex; flex-wrap: wrap; gap: .42rem; margin-top: .85rem; }
+.timer-mode-selector button { min-height: 1.95rem; padding: 0 .58rem; border: 1px solid rgba(34,36,31,.2); background: transparent; color: #5c5c55; font-family: inherit; font-size: .7rem; font-weight: 700; transition: background 160ms cubic-bezier(.23,1,.32,1), color 160ms cubic-bezier(.23,1,.32,1), transform 160ms cubic-bezier(.23,1,.32,1); }
+.timer-mode-selector button:hover { transform: translateY(-1px); border-color: #e86a33; color: #20231f; }.timer-mode-selector button.is-selected { border-color: #20231f; background: #20231f; color: #fff8eb; }
 .clock-stage { position: relative; display: grid; place-items: center; min-height: 14rem; margin: .7rem 0 .25rem; }
 .clock-dial { position: relative; z-index: 1; display: grid; place-items: center; width: 12.5rem; aspect-ratio: 1; border-radius: 50%; padding: .55rem; box-shadow: inset 0 0 0 1px rgba(34,36,31,.1); }
 .clock-center { display: grid; align-content: center; justify-items: center; width: 100%; height: 100%; border-radius: 50%; background: #f4eedf; text-align: center; }
@@ -30,4 +36,4 @@
 .focus-clock.is-break { background: #e6ede5; }.focus-clock.is-break .clock-center { background: #e6ede5; }.focus-clock.is-break .focus-mode-tag { border-color: rgba(51,92,63,.35); color: #335c3f; }.focus-clock.is-break .break-orbit { opacity: 1; }
 @media (prefers-reduced-motion: no-preference) { .focus-clock.is-break .break-orbit { animation: break-orbit 9s linear infinite; }.focus-clock.is-break .break-orbit i { animation: break-pulse 1.8s ease-in-out infinite alternate; } }
 @keyframes break-orbit { to { transform: rotate(360deg); } } @keyframes break-pulse { from { transform: scale(.82); opacity: .55; } to { transform: scale(1.2); opacity: 1; } }
-@media (max-width: 700px) { .focus-clock { padding: 1.15rem; }.clock-stage { min-height: 12rem; }.clock-dial { width: 10.8rem; }.clock-duration-controls { flex-wrap: wrap; } }
+@media (max-width: 700px) { .focus-clock { padding: 1.15rem; }.clock-stage { min-height: 12rem; }.clock-dial { width: 10.8rem; }.clock-duration-controls { flex-wrap: wrap; }.timer-mode-selector { gap: .34rem; }.timer-mode-selector button { padding: 0 .5rem; } }

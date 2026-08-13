@@ -102,3 +102,16 @@
 - [x] Correct focus-clock primary control labels so start and resume actions describe the current interval accurately.
 - [x] Add component-level FocusClock tests for start, pause, reset, switching modes, duration changes, and interval completion.
 - [x] Re-verify focus-clock labels and controls in the browser after the correction.
+
+## Unified tasks, real-time clock, and personal music
+
+- [x] Diagnose why imported planned tasks remain isolated from the main Today dashboard list.
+- [x] Surface planned tasks in the main dashboard with priority, time, completion, and navigation back to the planner.
+- [ ] Keep planned-task completion changes consistent between Today and Plan for local and signed-in cloud users.
+- [x] Add a live real-time clock alongside the focus timer.
+- [x] Add selectable timer modes, including Pomodoro, short break, long break, and a custom duration mode.
+- [x] Make timer state, labels, alarms, and break animations correctly reflect the selected mode.
+- [x] Add a user-selected personal-music file option with local-only playback and clear privacy guidance.
+- [ ] Test the integrated task, timer, and personal-music flows in desktop and mobile previews and deploy the update.
+- [ ] Commit and push the verified unified-task, clock, and personal-music enhancement to the public GitHub repository.
+- [x] Restore accessible mobile navigation, sign-in, and personal-music controls in the compact workspace header.

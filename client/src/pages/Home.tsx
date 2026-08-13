@@ -2,8 +2,11 @@
 import { Button } from "@/components/ui/button";
 import FocusClock from "@/components/FocusClock";
 import TaskPlanner from "@/components/TaskPlanner";
+import "@/components/today-plan.css";
 import { habitAssets } from "@/lib/assets";
 import { mapCloudHabit, type Habit, type HabitColor } from "@/lib/habitData";
+import { mapCloudTask, type PlanTask, type TaskImportResult } from "@/lib/taskData";
+import { validatePersonalAudio } from "@/lib/personalMusic";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import {
   ArrowUpRight,
@@ -23,6 +26,7 @@ import {
   Sparkles,
   Target,
   Trash2,
+  Upload,
   Volume2,
   VolumeX,
   X,
@@ -32,8 +36,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 type View = "today" | "plan" | "insights";
+type PersonalMusic = { name: string; url: string };
 
 const STORAGE_KEY = "signal-streak-habits";
+const TASK_STORAGE_KEY = "signal-streak-planned-tasks";
 const MUSIC_URL = habitAssets.focusSound;
 const starterHabits: Habit[] = [
   { id: "movement", name: "Morning movement", cadence: "Daily", color: "saffron", completedDates: [] },
@@ -82,6 +88,21 @@ function getInitialHabits() {
   }
 }
 
+function getInitialTasks(): PlanTask[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(TASK_STORAGE_KEY) ?? "[]") as PlanTask[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function readableTaskTime(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(2000, 0, 1, hours, minutes));
+}
+
 function makeId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}`;
 }
@@ -109,6 +130,10 @@ export default function Home() {
   const [cloudSaving, setCloudSaving] = useState(false);
   const [cloudHabits, setCloudHabits] = useState<Habit[]>([]);
   const [localHabits, setLocalHabits] = useState<Habit[]>(getInitialHabits);
+  const [cloudTasks, setCloudTasks] = useState<PlanTask[]>([]);
+  const [localTasks, setLocalTasks] = useState<PlanTask[]>(getInitialTasks);
+  const [taskLoading, setTaskLoading] = useState(false);
+  const [taskSaving, setTaskSaving] = useState(false);
   const [activeView, setActiveView] = useState<View>("today");
   const [isAdding, setIsAdding] = useState(false);
   const [newHabitName, setNewHabitName] = useState("");
@@ -117,14 +142,17 @@ export default function Home() {
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
   const [musicMuted, setMusicMuted] = useState(false);
   const [musicVolume, setMusicVolume] = useState(0.34);
+  const [personalMusic, setPersonalMusic] = useState<PersonalMusic | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
   const [isSendingLink, setIsSendingLink] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const personalMusicInputRef = useRef<HTMLInputElement>(null);
 
   const isAuthenticated = Boolean(user);
   const userLabel = user?.user_metadata?.full_name ?? user?.email?.split("@")[0] ?? "Signed in";
   const habits = isAuthenticated ? cloudHabits : localHabits;
+  const plannedTasks = isAuthenticated ? cloudTasks : localTasks;
   const today = useMemo(() => new Date(), []);
   const todayKey = useMemo(() => dateKey(today), [today]);
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, index) => dateAtOffset(index - 6)), []);
@@ -136,7 +164,9 @@ export default function Home() {
   const allTimeMarks = habits.reduce((total, habit) => total + habit.completedDates.length, 0);
   const longestCurrentStreak = habits.reduce((max, habit) => Math.max(max, habitStreak(habit)), 0);
   const activeDays = new Set(habits.flatMap(habit => habit.completedDates)).size;
+  const completedTasks = plannedTasks.filter(task => task.completedAt).length;
   const isSaving = cloudSaving;
+  const activeMusicUrl = personalMusic?.url ?? MUSIC_URL;
 
   const loadCloudHabits = useCallback(async (userId: string) => {
     const client = supabase;
@@ -163,6 +193,24 @@ export default function Home() {
     setCloudLoading(false);
   }, []);
 
+  const loadCloudTasks = useCallback(async () => {
+    const client = supabase;
+    if (!client) return;
+    setTaskLoading(true);
+    const { data, error } = await client
+      .from("planned_tasks")
+      .select("id, title, priority, scheduled_time, completed_at")
+      .order("scheduled_time", { ascending: true })
+      .order("created_at", { ascending: true });
+    if (error) {
+      toast.error("Your plan could not load.", { description: "Try refreshing in a moment." });
+      setCloudTasks([]);
+    } else {
+      setCloudTasks((data ?? []).map(mapCloudTask));
+    }
+    setTaskLoading(false);
+  }, []);
+
   useEffect(() => {
     const client = supabase;
     if (!client) {
@@ -175,31 +223,39 @@ export default function Home() {
       const nextUser = data.session?.user ?? null;
       setUser(nextUser);
       setAuthLoading(false);
-      if (nextUser) void loadCloudHabits(nextUser.id);
+      if (nextUser) { void loadCloudHabits(nextUser.id); void loadCloudTasks(); }
     });
     const { data: listener } = client.auth.onAuthStateChange((_event, session) => {
       if (!active) return;
       const nextUser = session?.user ?? null;
       setUser(nextUser);
       setAuthLoading(false);
-      if (nextUser) void loadCloudHabits(nextUser.id);
-      else setCloudHabits([]);
+      if (nextUser) { void loadCloudHabits(nextUser.id); void loadCloudTasks(); }
+      else { setCloudHabits([]); setCloudTasks([]); }
     });
     return () => {
       active = false;
       listener.subscription.unsubscribe();
     };
-  }, [loadCloudHabits]);
+  }, [loadCloudHabits, loadCloudTasks]);
 
   useEffect(() => {
     if (!isAuthenticated) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(localHabits));
   }, [isAuthenticated, localHabits]);
 
   useEffect(() => {
+    if (!isAuthenticated) window.localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(localTasks));
+  }, [isAuthenticated, localTasks]);
+
+  useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
     audio.volume = musicMuted ? 0 : musicVolume;
   }, [musicMuted, musicVolume]);
+
+  useEffect(() => () => {
+    if (personalMusic?.url) URL.revokeObjectURL(personalMusic.url);
+  }, [personalMusic]);
 
   async function toggleHabit(habit: Habit) {
     const wasComplete = habit.completedDates.includes(todayKey);
@@ -276,6 +332,62 @@ export default function Home() {
     toast(`${habit.name} removed.`, { description: isAuthenticated ? "Removed from your private board." : "You can add it again any time." });
   }
 
+  async function addPlannedTasks(items: TaskImportResult["tasks"]) {
+    if (!items.length) return false;
+    if (isAuthenticated && supabase && user) {
+      try {
+        setTaskSaving(true);
+        const { error } = await supabase.from("planned_tasks").insert(items.map(item => ({ user_id: user.id, title: item.title, priority: item.priority, scheduled_time: item.scheduledTime })));
+        if (error) throw error;
+        await loadCloudTasks();
+      } catch (error) {
+        toast.error("Those tasks could not be saved.", { description: error instanceof Error ? error.message : "Please try again." });
+        return false;
+      } finally {
+        setTaskSaving(false);
+      }
+    } else {
+      setLocalTasks(current => [...current, ...items.map(item => ({ ...item, id: makeId(), completedAt: null }))].sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime)));
+    }
+    toast.success(`${items.length} ${items.length === 1 ? "task" : "tasks"} added.`, { description: isAuthenticated ? "Saved to your private cloud plan and Today." : "Saved to this device and Today." });
+    return true;
+  }
+
+  async function togglePlannedTask(task: PlanTask) {
+    const completedAt = task.completedAt ? null : new Date().toISOString();
+    if (isAuthenticated && supabase) {
+      try {
+        setTaskSaving(true);
+        const { error } = await supabase.from("planned_tasks").update({ completed_at: completedAt }).eq("id", task.id);
+        if (error) throw error;
+        await loadCloudTasks();
+      } catch {
+        toast.error("That task could not be updated. Please try again.");
+      } finally {
+        setTaskSaving(false);
+      }
+    } else {
+      setLocalTasks(current => current.map(item => item.id === task.id ? { ...item, completedAt } : item));
+    }
+  }
+
+  async function deletePlannedTask(task: PlanTask) {
+    if (isAuthenticated && supabase) {
+      try {
+        setTaskSaving(true);
+        const { error } = await supabase.from("planned_tasks").delete().eq("id", task.id);
+        if (error) throw error;
+        await loadCloudTasks();
+      } catch {
+        toast.error("That task could not be removed. Please try again.");
+      } finally {
+        setTaskSaving(false);
+      }
+    } else {
+      setLocalTasks(current => current.filter(item => item.id !== task.id));
+    }
+  }
+
   async function addHabit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const name = newHabitName.trim();
@@ -322,6 +434,28 @@ export default function Home() {
     }
   }
 
+  function choosePersonalMusic(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const validationMessage = validatePersonalAudio(file);
+    if (validationMessage) {
+      toast.error(validationMessage);
+      return;
+    }
+    audioRef.current?.pause();
+    setIsMusicPlaying(false);
+    setPersonalMusic({ name: file.name, url: URL.createObjectURL(file) });
+    toast.success("Personal track ready.", { description: "It plays only in this browser and is never uploaded or synced." });
+  }
+
+  function clearPersonalMusic() {
+    audioRef.current?.pause();
+    setIsMusicPlaying(false);
+    setPersonalMusic(null);
+    toast("Signal loop restored.", { description: "Your selected file has been removed from this browser session." });
+  }
+
   function openSignIn() {
     if (!isSupabaseConfigured) {
       toast.error("Cloud sign-in is not configured in this preview.", { description: "Use the Vercel deployment after the next build to sync across devices." });
@@ -363,7 +497,7 @@ export default function Home() {
 
   return (
     <div className="app-shell">
-      <audio ref={audioRef} src={MUSIC_URL} loop preload="metadata" onPause={() => setIsMusicPlaying(false)} onPlay={() => setIsMusicPlaying(true)} />
+      <audio ref={audioRef} src={activeMusicUrl} loop preload="metadata" onPause={() => setIsMusicPlaying(false)} onPlay={() => setIsMusicPlaying(true)} />
       <aside className="side-rail">
         <a className="brand-lockup" href="/" aria-label="Return to Signal / Streak home">
           <img src={habitAssets.logo} alt="Signal / Streak orange flag mark" className="brand-mark" />
@@ -393,6 +527,12 @@ export default function Home() {
             <button className="sound-icon" onClick={() => setMusicMuted(current => !current)} aria-label={musicMuted ? "Unmute focus sound" : "Mute focus sound"}>{musicMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}</button>
           </div>
           <input className="volume-slider" aria-label="Focus sound volume" type="range" min="0" max="1" step="0.05" value={musicVolume} onChange={event => setMusicVolume(Number(event.target.value))} />
+          <input ref={personalMusicInputRef} className="personal-music-input" type="file" accept="audio/*" onChange={choosePersonalMusic} aria-label="Choose personal music" />
+          <div className="personal-music-row">
+            <button className="personal-music-select" type="button" onClick={() => personalMusicInputRef.current?.click()}><Upload size={13} />{personalMusic ? "Change track" : "Use your music"}</button>
+            {personalMusic ? <button className="personal-music-remove" type="button" onClick={clearPersonalMusic} aria-label="Remove personal music"><X size={13} /></button> : null}
+          </div>
+          <p className="personal-music-status">{personalMusic ? <><strong>{personalMusic.name}</strong> · local only</> : "Personal files stay in this browser and are never uploaded."}</p>
         </section>
 
         <section className="account-panel" aria-live="polite">
@@ -410,11 +550,18 @@ export default function Home() {
       <div className="mobile-topbar">
         <a className="brand-lockup" href="/" aria-label="Return to Signal / Streak home"><img src={habitAssets.logo} alt="Signal / Streak orange flag mark" className="brand-mark" /><p className="brand-name">Habit<span>.</span></p></a>
         <div className="mobile-actions">
-          <Button size="icon" variant="outline" aria-label={isMusicPlaying ? "Pause focus sound" : "Play focus sound"} onClick={toggleMusic}>{isMusicPlaying ? <Pause size={18} /> : <Music2 size={18} />}</Button>
-          {isAuthenticated ? <Button size="icon" variant="outline" aria-label="Sign out" onClick={handleLogout}><LogOut size={17} /></Button> : <Button size="icon" variant="outline" aria-label="Sign in to sync" onClick={openSignIn}><LogIn size={17} /></Button>}
-          <Button size="icon" variant="outline" aria-label="Add habit" onClick={() => setIsAdding(true)}><Plus size={18} /></Button>
+          <button className="mobile-action" type="button" aria-label={isMusicPlaying ? "Pause focus sound" : "Play focus sound"} aria-pressed={isMusicPlaying} onClick={toggleMusic}>{isMusicPlaying ? <Pause size={17} /> : <Music2 size={17} />}</button>
+          <button className="mobile-action" type="button" aria-label={personalMusic ? "Change personal music" : "Choose personal music"} onClick={() => personalMusicInputRef.current?.click()}><Upload size={16} /></button>
+          {personalMusic ? <button className="mobile-action is-remove" type="button" aria-label="Remove personal music" onClick={clearPersonalMusic}><X size={16} /></button> : null}
+          {isAuthenticated ? <button className="mobile-action" type="button" aria-label="Sign out" onClick={handleLogout}><LogOut size={17} /></button> : <button className="mobile-action is-sync" type="button" aria-label="Sign in to sync" onClick={openSignIn}><LogIn size={17} /></button>}
+          <button className="mobile-action" type="button" aria-label="Add habit" onClick={() => setIsAdding(true)}><Plus size={18} /></button>
         </div>
       </div>
+      <nav className="mobile-nav" aria-label="Workspace navigation">
+        <button className={activeView === "today" ? "is-active" : ""} type="button" onClick={() => setActiveView("today")}><Target size={14} /> Today</button>
+        <button className={activeView === "plan" ? "is-active" : ""} type="button" onClick={() => setActiveView("plan")}><ListTodo size={14} /> Plan</button>
+        <button className={activeView === "insights" ? "is-active" : ""} type="button" onClick={() => setActiveView("insights")}><BarChart3 size={14} /> Insights</button>
+      </nav>
 
       <main className="main-canvas">
         <header className="dashboard-header">
@@ -438,6 +585,7 @@ export default function Home() {
                 const complete = habit.completedDates.includes(todayKey); const streak = habitStreak(habit);
                 return <article className={`habit-row ${complete ? "is-complete" : ""}`} key={habit.id} style={{ animationDelay: `${index * 45}ms` }}><span className={`habit-index index-${habit.color}`}>0{index + 1}</span><div className="habit-copy"><h3>{habit.name}</h3><p><span className={`color-dot dot-${habit.color}`} />{habit.cadence}{streak > 0 ? ` · ${streak} day${streak === 1 ? "" : "s"} running` : " · Ready when you are"}</p></div><button disabled={isSaving} className={`check-tile ${complete ? "is-complete" : ""}`} aria-pressed={complete} aria-label={`${complete ? "Unmark" : "Mark"} ${habit.name}`} onClick={() => void toggleHabit(habit)}>{complete ? <Check size={19} strokeWidth={2.5} /> : <span className="mark-glyph" aria-hidden="true"><i /><i /><i /></span>}</button><button disabled={isSaving} className="icon-button delete-button" aria-label={`Remove ${habit.name}`} onClick={() => void deleteHabit(habit)}><Trash2 size={15} /></button></article>;
               })}</div> : <div className="empty-state"><Flag size={24} /><h3>A clear board.</h3><p>File one habit to give today a place to begin.</p><button onClick={() => setIsAdding(true)}>Add your first habit <ChevronRight size={15} /></button></div>}
+              <section className="today-plan-panel" aria-labelledby="today-plan-heading"><div className="panel-heading today-plan-heading"><div><p className="eyebrow">03B / TODAY’S PLAN</p><h3 id="today-plan-heading">Timed tasks, in the same board</h3></div><button type="button" onClick={() => setActiveView("plan")}>Open planner <ArrowUpRight size={14} /></button></div>{plannedTasks.length ? <div className="today-plan-list">{plannedTasks.map((task, index) => <article className={`today-plan-row ${task.completedAt ? "is-complete" : ""}`} key={task.id}><span className={`planned-task-number priority-${task.priority}`}>0{index + 1}</span><div className="today-task-copy"><h4>{task.title}</h4><p>{task.priority} priority · {readableTaskTime(task.scheduledTime)}</p></div><button disabled={taskSaving} className="plan-check" aria-label={`${task.completedAt ? "Reopen" : "Complete"} ${task.title}`} aria-pressed={Boolean(task.completedAt)} onClick={() => void togglePlannedTask(task)}>{task.completedAt ? <Check size={17} /> : <span />}</button><button disabled={taskSaving} className="icon-button delete-button" aria-label={`Remove ${task.title}`} onClick={() => void deletePlannedTask(task)}><Trash2 size={15} /></button></article>)}</div> : <div className="today-plan-empty"><ListTodo size={17} /><span>No timed tasks yet.</span><button type="button" onClick={() => setActiveView("plan")}>Add a plan</button></div>}</section>
             </section>
             <aside className="focus-column">
               <section className="focus-card"><img src={habitAssets.focusCard} alt="Abstract signal lines flowing toward a saffron tile" /><div className="focus-card-content"><p className="eyebrow eyebrow-light">FOCUS NOTE</p><h2>{completedToday === habits.length && habits.length ? "The board is clear." : "Keep it small."}</h2><p>{completedToday === habits.length && habits.length ? "You made every mark that mattered today." : "The next mark is closer than it looks."}</p><button disabled={isSaving} className="text-action" onClick={() => void markAllRemaining()}>{habits.length && completedToday === habits.length ? "Review the week" : "Mark remaining"} <ArrowUpRight size={15} /></button></div></section>
@@ -446,7 +594,7 @@ export default function Home() {
               <section className="week-note"><div className="week-note-copy"><p className="eyebrow">04 / A QUICK LOOK</p><h3>{weeklyPercent}% of your week is in motion.</h3><p>{weeklyMarks} marks across {activeDays} active {activeDays === 1 ? "day" : "days"}.</p></div><div className="week-note-art" aria-hidden="true"><span /><span /><span /><span /></div></section>
             </aside>
           </div>
-        </> : activeView === "plan" ? <TaskPlanner user={user} /> : <section className="insights-view" aria-labelledby="insights-heading"><div className="section-heading"><div><p className="eyebrow">02 / INSIGHTS</p><h2 id="insights-heading">The pattern, over time.</h2></div><Button className="add-habit-button" onClick={() => { setActiveView("today"); setIsAdding(true); }}><Plus size={16} /> Add habit</Button></div><div className="insight-stats"><div className="insight-stat"><span className="eyebrow">WEEKLY SIGNAL</span><strong>{weeklyPercent}<small>%</small></strong><p>{weeklyMarks} total marks in the last seven days.</p></div><div className="insight-stat"><span className="eyebrow">CURRENT RUN</span><strong>{longestCurrentStreak}<small> days</small></strong><p>Your longest active streak right now.</p></div><div className="insight-stat"><span className="eyebrow">ALL-TIME MARKS</span><strong>{allTimeMarks}</strong><p>{isAuthenticated ? "Every completed action in your private cloud board." : "Every completed action saved locally."}</p></div></div><div className="insight-chart"><div className="panel-heading"><div><p className="eyebrow">LAST SEVEN DAYS</p><h3>Where the signal showed up</h3></div><Sparkles size={18} /></div><div className="insight-bars">{weekDays.map(day => { const key = dateKey(day); const marks = habits.reduce((count, habit) => count + (habit.completedDates.includes(key) ? 1 : 0), 0); const height = habits.length ? Math.max(10, Math.round((marks / habits.length) * 100)) : 10; return <div className="insight-bar-wrap" key={key}><div className="insight-bar-track"><div className="insight-bar-fill" style={{ height: `${height}%` }} /></div><span>{new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(day)}</span><small>{marks}</small></div>; })}</div></div><div className="insight-footer"><Leaf size={18} /><p>Consistency is not a straight line. It is a set of returns.</p><button onClick={() => setActiveView("today")}>Back to today <ChevronRight size={15} /></button></div></section>}
+        </> : activeView === "plan" ? <TaskPlanner tasks={plannedTasks} isLoading={taskLoading} isSaving={taskSaving} isCloud={isAuthenticated} onAddTasks={addPlannedTasks} onToggleTask={togglePlannedTask} onRemoveTask={deletePlannedTask} /> : <section className="insights-view" aria-labelledby="insights-heading"><div className="section-heading"><div><p className="eyebrow">02 / INSIGHTS</p><h2 id="insights-heading">The pattern, over time.</h2></div><Button className="add-habit-button" onClick={() => { setActiveView("today"); setIsAdding(true); }}><Plus size={16} /> Add habit</Button></div><div className="insight-stats"><div className="insight-stat"><span className="eyebrow">WEEKLY SIGNAL</span><strong>{weeklyPercent}<small>%</small></strong><p>{weeklyMarks} total marks in the last seven days.</p></div><div className="insight-stat"><span className="eyebrow">CURRENT RUN</span><strong>{longestCurrentStreak}<small> days</small></strong><p>Your longest active streak right now.</p></div><div className="insight-stat"><span className="eyebrow">ALL-TIME MARKS</span><strong>{allTimeMarks}</strong><p>{isAuthenticated ? "Every completed action in your private cloud board." : "Every completed action saved locally."}</p></div><div className="insight-stat"><span className="eyebrow">PLAN CUES</span><strong>{completedTasks}<small>/{plannedTasks.length}</small></strong><p>Timed tasks completed from Today or Plan.</p></div></div><div className="insight-chart"><div className="panel-heading"><div><p className="eyebrow">LAST SEVEN DAYS</p><h3>Where the signal showed up</h3></div><Sparkles size={18} /></div><div className="insight-bars">{weekDays.map(day => { const key = dateKey(day); const marks = habits.reduce((count, habit) => count + (habit.completedDates.includes(key) ? 1 : 0), 0); const height = habits.length ? Math.max(10, Math.round((marks / habits.length) * 100)) : 10; return <div className="insight-bar-wrap" key={key}><div className="insight-bar-track"><div className="insight-bar-fill" style={{ height: `${height}%` }} /></div><span>{new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(day)}</span><small>{marks}</small></div>; })}</div></div><div className="insight-footer"><Leaf size={18} /><p>Consistency is not a straight line. It is a set of returns.</p><button onClick={() => setActiveView("today")}>Back to today <ChevronRight size={15} /></button></div></section>}
       </main>
       {isAuthOpen && <div className="auth-dialog-backdrop" role="presentation" onMouseDown={() => setIsAuthOpen(false)}>
         <form className="auth-dialog" aria-modal="true" aria-labelledby="auth-dialog-title" role="dialog" onSubmit={sendMagicLink} onMouseDown={event => event.stopPropagation()}>
