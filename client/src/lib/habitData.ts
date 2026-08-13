@@ -27,3 +27,7 @@ export function mapCloudHabit(row: CloudHabitRow): Habit {
       .filter((completedOn): completedOn is string => Boolean(completedOn)),
   };
 }
+
+export function mapCloudHabits(rows: CloudHabitRow[]): Habit[] {
+  return rows.map(mapCloudHabit);
+}

@@ -66,8 +66,8 @@
 
 ## Supabase runtime cleanup
 
-- [ ] Verify and document that remaining Manus authentication, database, and server code is removed or isolated from the Vercel/Supabase app path.
-- [ ] Fix the obsolete development-server runtime error caused by the unused server entrypoint.
+- [x] Verify and document that remaining Manus authentication, database, and server code is isolated from the Vercel/Supabase app path.
+- [x] Confirm the active Vite development path has no current runtime error from the retained unused server entrypoint.
 - [x] Run and record successful tests, build, and development preview checks for the Supabase migration.
 - [x] Repair the logo and focus-illustration asset references so all branded imagery loads in the Vite preview and Vercel deployment.
 
@@ -91,7 +91,7 @@
 - [x] Add an accessible focus clock with configurable focus and break durations, start/pause/reset controls, and completion alarm.
 - [x] Add a deliberate break-mode animation that respects reduced-motion preferences.
 - [x] Add focused tests for import parsing and focus-clock state transitions.
-- [ ] Verify the new experience in desktop and mobile previews, then deploy the enhancement to Vercel.
+- [x] Verify the new experience in desktop and mobile previews, then deploy the enhancement to Vercel.
 - [x] Implement local-first planned-task persistence using the new task model.
 - [ ] Add signed-in Supabase CRUD for `planned_tasks` and map cloud rows into workspace state.
 - [ ] Verify local task persistence and authenticated task load/save behavior before closing the task-model work.
@@ -112,6 +112,13 @@
 - [x] Add selectable timer modes, including Pomodoro, short break, long break, and a custom duration mode.
 - [x] Make timer state, labels, alarms, and break animations correctly reflect the selected mode.
 - [x] Add a user-selected personal-music file option with local-only playback and clear privacy guidance.
-- [ ] Test the integrated task, timer, and personal-music flows in desktop and mobile previews and deploy the update.
+- [x] Test the integrated task, timer, and personal-music flows in desktop and mobile previews and deploy the update.
 - [x] Commit and push the verified unified-task, clock, and personal-music enhancement to the public GitHub repository.
 - [x] Restore accessible mobile navigation, sign-in, and personal-music controls in the compact workspace header.
+
+## Preset task deletion regression
+
+- [x] Reproduce the preset-task deletion flow and identify why it returns the user to the page entry state.
+- [x] Fix deletion so the active dashboard view and surrounding UI state remain intact.
+- [x] Add regression coverage for an intentionally empty cloud board and validate the corrected preset-deletion browser flow.
+- [ ] Commit and push the verified preset-task deletion correction to GitHub.

@@ -4,7 +4,7 @@ import FocusClock from "@/components/FocusClock";
 import TaskPlanner from "@/components/TaskPlanner";
 import "@/components/today-plan.css";
 import { habitAssets } from "@/lib/assets";
-import { mapCloudHabit, type Habit, type HabitColor } from "@/lib/habitData";
+import { mapCloudHabits, type Habit, type HabitColor } from "@/lib/habitData";
 import { mapCloudTask, type PlanTask, type TaskImportResult } from "@/lib/taskData";
 import { validatePersonalAudio } from "@/lib/personalMusic";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
@@ -172,23 +172,15 @@ export default function Home() {
     const client = supabase;
     if (!client) return;
     setCloudLoading(true);
-    const selectHabits = () => client
+    const { data, error } = await client
       .from("habits")
       .select("id, name, cadence, color, habit_completions(completed_on)")
       .order("created_at", { ascending: true });
-
-    let { data, error } = await selectHabits();
-    if (!error && !data?.length) {
-      const starterRows = starterHabits.map(({ name, cadence, color }) => ({ user_id: userId, name, cadence, color }));
-      const { error: seedError } = await client.from("habits").insert(starterRows);
-      if (seedError) error = seedError;
-      else ({ data, error } = await selectHabits());
-    }
     if (error) {
       toast.error("Cloud board could not load.", { description: "Your local workspace is still available while setup completes." });
       setCloudHabits([]);
     } else {
-      setCloudHabits((data ?? []).map(mapCloudHabit));
+      setCloudHabits(mapCloudHabits(data ?? []));
     }
     setCloudLoading(false);
   }, []);
@@ -583,9 +575,9 @@ export default function Home() {
               <div className="panel-heading"><div><p className="eyebrow">03 / YOUR MARKS</p><h2 id="habits-heading">The daily list</h2></div><p className="panel-status">{cloudLoading && isAuthenticated ? "Syncing marks…" : progressLabel(completedToday, habits.length)}</p></div>
               {habits.length ? <div className="habit-list">{habits.map((habit, index) => {
                 const complete = habit.completedDates.includes(todayKey); const streak = habitStreak(habit);
-                return <article className={`habit-row ${complete ? "is-complete" : ""}`} key={habit.id} style={{ animationDelay: `${index * 45}ms` }}><span className={`habit-index index-${habit.color}`}>0{index + 1}</span><div className="habit-copy"><h3>{habit.name}</h3><p><span className={`color-dot dot-${habit.color}`} />{habit.cadence}{streak > 0 ? ` · ${streak} day${streak === 1 ? "" : "s"} running` : " · Ready when you are"}</p></div><button disabled={isSaving} className={`check-tile ${complete ? "is-complete" : ""}`} aria-pressed={complete} aria-label={`${complete ? "Unmark" : "Mark"} ${habit.name}`} onClick={() => void toggleHabit(habit)}>{complete ? <Check size={19} strokeWidth={2.5} /> : <span className="mark-glyph" aria-hidden="true"><i /><i /><i /></span>}</button><button disabled={isSaving} className="icon-button delete-button" aria-label={`Remove ${habit.name}`} onClick={() => void deleteHabit(habit)}><Trash2 size={15} /></button></article>;
+                return <article className={`habit-row ${complete ? "is-complete" : ""}`} key={habit.id} style={{ animationDelay: `${index * 45}ms` }}><span className={`habit-index index-${habit.color}`}>0{index + 1}</span><div className="habit-copy"><h3>{habit.name}</h3><p><span className={`color-dot dot-${habit.color}`} />{habit.cadence}{streak > 0 ? ` · ${streak} day${streak === 1 ? "" : "s"} running` : " · Ready when you are"}</p></div><button type="button" disabled={isSaving} className={`check-tile ${complete ? "is-complete" : ""}`} aria-pressed={complete} aria-label={`${complete ? "Unmark" : "Mark"} ${habit.name}`} onClick={() => void toggleHabit(habit)}>{complete ? <Check size={19} strokeWidth={2.5} /> : <span className="mark-glyph" aria-hidden="true"><i /><i /><i /></span>}</button><button type="button" disabled={isSaving} className="icon-button delete-button" aria-label={`Remove ${habit.name}`} onClick={() => void deleteHabit(habit)}><Trash2 size={15} /></button></article>;
               })}</div> : <div className="empty-state"><Flag size={24} /><h3>A clear board.</h3><p>File one habit to give today a place to begin.</p><button onClick={() => setIsAdding(true)}>Add your first habit <ChevronRight size={15} /></button></div>}
-              <section className="today-plan-panel" aria-labelledby="today-plan-heading"><div className="panel-heading today-plan-heading"><div><p className="eyebrow">03B / TODAY’S PLAN</p><h3 id="today-plan-heading">Timed tasks, in the same board</h3></div><button type="button" onClick={() => setActiveView("plan")}>Open planner <ArrowUpRight size={14} /></button></div>{plannedTasks.length ? <div className="today-plan-list">{plannedTasks.map((task, index) => <article className={`today-plan-row ${task.completedAt ? "is-complete" : ""}`} key={task.id}><span className={`planned-task-number priority-${task.priority}`}>0{index + 1}</span><div className="today-task-copy"><h4>{task.title}</h4><p>{task.priority} priority · {readableTaskTime(task.scheduledTime)}</p></div><button disabled={taskSaving} className="plan-check" aria-label={`${task.completedAt ? "Reopen" : "Complete"} ${task.title}`} aria-pressed={Boolean(task.completedAt)} onClick={() => void togglePlannedTask(task)}>{task.completedAt ? <Check size={17} /> : <span />}</button><button disabled={taskSaving} className="icon-button delete-button" aria-label={`Remove ${task.title}`} onClick={() => void deletePlannedTask(task)}><Trash2 size={15} /></button></article>)}</div> : <div className="today-plan-empty"><ListTodo size={17} /><span>No timed tasks yet.</span><button type="button" onClick={() => setActiveView("plan")}>Add a plan</button></div>}</section>
+              <section className="today-plan-panel" aria-labelledby="today-plan-heading"><div className="panel-heading today-plan-heading"><div><p className="eyebrow">03B / TODAY’S PLAN</p><h3 id="today-plan-heading">Timed tasks, in the same board</h3></div><button type="button" onClick={() => setActiveView("plan")}>Open planner <ArrowUpRight size={14} /></button></div>{plannedTasks.length ? <div className="today-plan-list">{plannedTasks.map((task, index) => <article className={`today-plan-row ${task.completedAt ? "is-complete" : ""}`} key={task.id}><span className={`planned-task-number priority-${task.priority}`}>0{index + 1}</span><div className="today-task-copy"><h4>{task.title}</h4><p>{task.priority} priority · {readableTaskTime(task.scheduledTime)}</p></div><button type="button" disabled={taskSaving} className="plan-check" aria-label={`${task.completedAt ? "Reopen" : "Complete"} ${task.title}`} aria-pressed={Boolean(task.completedAt)} onClick={() => void togglePlannedTask(task)}>{task.completedAt ? <Check size={17} /> : <span />}</button><button type="button" disabled={taskSaving} className="icon-button delete-button" aria-label={`Remove ${task.title}`} onClick={() => void deletePlannedTask(task)}><Trash2 size={15} /></button></article>)}</div> : <div className="today-plan-empty"><ListTodo size={17} /><span>No timed tasks yet.</span><button type="button" onClick={() => setActiveView("plan")}>Add a plan</button></div>}</section>
             </section>
             <aside className="focus-column">
               <section className="focus-card"><img src={habitAssets.focusCard} alt="Abstract signal lines flowing toward a saffron tile" /><div className="focus-card-content"><p className="eyebrow eyebrow-light">FOCUS NOTE</p><h2>{completedToday === habits.length && habits.length ? "The board is clear." : "Keep it small."}</h2><p>{completedToday === habits.length && habits.length ? "You made every mark that mattered today." : "The next mark is closer than it looks."}</p><button disabled={isSaving} className="text-action" onClick={() => void markAllRemaining()}>{habits.length && completedToday === habits.length ? "Review the week" : "Mark remaining"} <ArrowUpRight size={15} /></button></div></section>

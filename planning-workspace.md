@@ -19,3 +19,7 @@ The released Vercel planning view was inspected at `https://habit-traccker-gamma
 Planned tasks now have one shared state owner in the workspace dashboard. The Today view renders the same device-saved task queue beneath habits, including priority, scheduled time, completion, removal, and a direct route back to Plan. During local validation, all six existing plan tasks appeared in Today and marking **Prepare notes** complete immediately updated its state without leaving the main board.
 
 At a 375px viewport, the compact workspace header now retains action buttons for focus sound, local personal-music selection, cloud sign-in/sign-out, and adding a habit. A second row exposes Today, Plan, and Insights with the active view clearly marked, so no essential controls depend on the hidden desktop side rail.
+
+Preset deletion no longer causes a deleted cloud board to be refilled with starter habits. The cloud loader now maps the returned user rows exactly, including an intentionally empty list, and all habit/task completion and deletion buttons explicitly use `type="button"` to prevent accidental form submission. In the local browser check, deleting **Morning movement** immediately showed the remaining three habits, retained the active Today view, and displayed a removal confirmation without navigation.
+
+After a browser refresh, the same local board still displayed only the remaining three habits and stayed on Today, confirming that the deleted preset was not restored by the page load.

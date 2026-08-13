@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapCloudHabit } from "./habitData";
+import { mapCloudHabit, mapCloudHabits } from "./habitData";
 
 describe("mapCloudHabit", () => {
   it("maps a user-scoped Supabase habit and its completion dates into dashboard data", () => {
@@ -16,5 +16,9 @@ describe("mapCloudHabit", () => {
       color: "saffron",
       completedDates: ["2026-08-13"],
     });
+  });
+
+  it("keeps an intentionally empty cloud board empty instead of restoring starter presets", () => {
+    expect(mapCloudHabits([])).toEqual([]);
   });
 });
