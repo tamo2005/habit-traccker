@@ -1,5 +1,7 @@
 /* Signal / Streak: a local-first habit board that syncs private data after sign-in. */
 import { Button } from "@/components/ui/button";
+import FocusClock from "@/components/FocusClock";
+import TaskPlanner from "@/components/TaskPlanner";
 import { habitAssets } from "@/lib/assets";
 import { mapCloudHabit, type Habit, type HabitColor } from "@/lib/habitData";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
@@ -13,6 +15,7 @@ import {
   Leaf,
   LogIn,
   LogOut,
+  ListTodo,
   Music2,
   Pause,
   Plus,
@@ -28,7 +31,7 @@ import type { User } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-type View = "today" | "insights";
+type View = "today" | "plan" | "insights";
 
 const STORAGE_KEY = "signal-streak-habits";
 const MUSIC_URL = habitAssets.focusSound;
@@ -362,15 +365,18 @@ export default function Home() {
     <div className="app-shell">
       <audio ref={audioRef} src={MUSIC_URL} loop preload="metadata" onPause={() => setIsMusicPlaying(false)} onPlay={() => setIsMusicPlaying(true)} />
       <aside className="side-rail">
-        <div className="brand-lockup">
+        <a className="brand-lockup" href="/" aria-label="Return to Signal / Streak home">
           <img src={habitAssets.logo} alt="Signal / Streak orange flag mark" className="brand-mark" />
           <div><p className="brand-name">Habit<span>.</span></p><p className="brand-subtitle">signal / streak</p></div>
-        </div>
+        </a>
         <div className="rail-rule" />
         <p className="rail-label">Workspace</p>
         <nav className="rail-nav" aria-label="Primary navigation">
           <button className={`rail-nav-item ${activeView === "today" ? "is-active" : ""}`} onClick={() => setActiveView("today")}>
             <Target size={16} strokeWidth={1.8} /><span>Today</span><span className="rail-count">{completedToday}/{habits.length}</span>
+          </button>
+          <button className={`rail-nav-item ${activeView === "plan" ? "is-active" : ""}`} onClick={() => setActiveView("plan")}>
+            <ListTodo size={16} strokeWidth={1.8} /><span>Plan</span><ArrowUpRight size={13} className="nav-arrow" />
           </button>
           <button className={`rail-nav-item ${activeView === "insights" ? "is-active" : ""}`} onClick={() => setActiveView("insights")}>
             <BarChart3 size={16} strokeWidth={1.8} /><span>Insights</span><ArrowUpRight size={13} className="nav-arrow" />
@@ -402,7 +408,7 @@ export default function Home() {
       </aside>
 
       <div className="mobile-topbar">
-        <div className="brand-lockup"><img src={habitAssets.logo} alt="Signal / Streak orange flag mark" className="brand-mark" /><p className="brand-name">Habit<span>.</span></p></div>
+        <a className="brand-lockup" href="/" aria-label="Return to Signal / Streak home"><img src={habitAssets.logo} alt="Signal / Streak orange flag mark" className="brand-mark" /><p className="brand-name">Habit<span>.</span></p></a>
         <div className="mobile-actions">
           <Button size="icon" variant="outline" aria-label={isMusicPlaying ? "Pause focus sound" : "Play focus sound"} onClick={toggleMusic}>{isMusicPlaying ? <Pause size={18} /> : <Music2 size={18} />}</Button>
           {isAuthenticated ? <Button size="icon" variant="outline" aria-label="Sign out" onClick={handleLogout}><LogOut size={17} /></Button> : <Button size="icon" variant="outline" aria-label="Sign in to sync" onClick={openSignIn}><LogIn size={17} /></Button>}
@@ -436,10 +442,11 @@ export default function Home() {
             <aside className="focus-column">
               <section className="focus-card"><img src={habitAssets.focusCard} alt="Abstract signal lines flowing toward a saffron tile" /><div className="focus-card-content"><p className="eyebrow eyebrow-light">FOCUS NOTE</p><h2>{completedToday === habits.length && habits.length ? "The board is clear." : "Keep it small."}</h2><p>{completedToday === habits.length && habits.length ? "You made every mark that mattered today." : "The next mark is closer than it looks."}</p><button disabled={isSaving} className="text-action" onClick={() => void markAllRemaining()}>{habits.length && completedToday === habits.length ? "Review the week" : "Mark remaining"} <ArrowUpRight size={15} /></button></div></section>
               {isAdding && <form className="add-panel" onSubmit={event => void addHabit(event)}><div className="add-panel-heading"><div><p className="eyebrow">FILE A NEW MARK</p><h3>Add a habit</h3></div><button type="button" className="icon-button" aria-label="Close add habit form" onClick={() => setIsAdding(false)}><X size={17} /></button></div><label className="field-label" htmlFor="habit-name">What do you want to keep?<input id="habit-name" autoFocus value={newHabitName} onChange={event => setNewHabitName(event.target.value)} placeholder="e.g. Take a short walk" /></label><div className="field-row"><label className="field-label" htmlFor="habit-cadence">Cadence<select id="habit-cadence" value={newHabitCadence} onChange={event => setNewHabitCadence(event.target.value)}><option>Daily</option><option>Weeknights</option><option>Three times a week</option><option>Weekends</option></select></label><fieldset><legend className="field-label">Signal</legend><div className="color-picker">{colorOptions.map(option => <button type="button" key={option.id} aria-label={option.label} className={`color-choice dot-${option.id} ${newHabitColor === option.id ? "is-selected" : ""}`} onClick={() => setNewHabitColor(option.id)} />)}</div></fieldset></div><button disabled={isSaving} className="submit-button" type="submit">{isSaving ? "Saving…" : "File habit"} <Plus size={16} /></button></form>}
+              <FocusClock />
               <section className="week-note"><div className="week-note-copy"><p className="eyebrow">04 / A QUICK LOOK</p><h3>{weeklyPercent}% of your week is in motion.</h3><p>{weeklyMarks} marks across {activeDays} active {activeDays === 1 ? "day" : "days"}.</p></div><div className="week-note-art" aria-hidden="true"><span /><span /><span /><span /></div></section>
             </aside>
           </div>
-        </> : <section className="insights-view" aria-labelledby="insights-heading"><div className="section-heading"><div><p className="eyebrow">02 / INSIGHTS</p><h2 id="insights-heading">The pattern, over time.</h2></div><Button className="add-habit-button" onClick={() => { setActiveView("today"); setIsAdding(true); }}><Plus size={16} /> Add habit</Button></div><div className="insight-stats"><div className="insight-stat"><span className="eyebrow">WEEKLY SIGNAL</span><strong>{weeklyPercent}<small>%</small></strong><p>{weeklyMarks} total marks in the last seven days.</p></div><div className="insight-stat"><span className="eyebrow">CURRENT RUN</span><strong>{longestCurrentStreak}<small> days</small></strong><p>Your longest active streak right now.</p></div><div className="insight-stat"><span className="eyebrow">ALL-TIME MARKS</span><strong>{allTimeMarks}</strong><p>{isAuthenticated ? "Every completed action in your private cloud board." : "Every completed action saved locally."}</p></div></div><div className="insight-chart"><div className="panel-heading"><div><p className="eyebrow">LAST SEVEN DAYS</p><h3>Where the signal showed up</h3></div><Sparkles size={18} /></div><div className="insight-bars">{weekDays.map(day => { const key = dateKey(day); const marks = habits.reduce((count, habit) => count + (habit.completedDates.includes(key) ? 1 : 0), 0); const height = habits.length ? Math.max(10, Math.round((marks / habits.length) * 100)) : 10; return <div className="insight-bar-wrap" key={key}><div className="insight-bar-track"><div className="insight-bar-fill" style={{ height: `${height}%` }} /></div><span>{new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(day)}</span><small>{marks}</small></div>; })}</div></div><div className="insight-footer"><Leaf size={18} /><p>Consistency is not a straight line. It is a set of returns.</p><button onClick={() => setActiveView("today")}>Back to today <ChevronRight size={15} /></button></div></section>}
+        </> : activeView === "plan" ? <TaskPlanner user={user} /> : <section className="insights-view" aria-labelledby="insights-heading"><div className="section-heading"><div><p className="eyebrow">02 / INSIGHTS</p><h2 id="insights-heading">The pattern, over time.</h2></div><Button className="add-habit-button" onClick={() => { setActiveView("today"); setIsAdding(true); }}><Plus size={16} /> Add habit</Button></div><div className="insight-stats"><div className="insight-stat"><span className="eyebrow">WEEKLY SIGNAL</span><strong>{weeklyPercent}<small>%</small></strong><p>{weeklyMarks} total marks in the last seven days.</p></div><div className="insight-stat"><span className="eyebrow">CURRENT RUN</span><strong>{longestCurrentStreak}<small> days</small></strong><p>Your longest active streak right now.</p></div><div className="insight-stat"><span className="eyebrow">ALL-TIME MARKS</span><strong>{allTimeMarks}</strong><p>{isAuthenticated ? "Every completed action in your private cloud board." : "Every completed action saved locally."}</p></div></div><div className="insight-chart"><div className="panel-heading"><div><p className="eyebrow">LAST SEVEN DAYS</p><h3>Where the signal showed up</h3></div><Sparkles size={18} /></div><div className="insight-bars">{weekDays.map(day => { const key = dateKey(day); const marks = habits.reduce((count, habit) => count + (habit.completedDates.includes(key) ? 1 : 0), 0); const height = habits.length ? Math.max(10, Math.round((marks / habits.length) * 100)) : 10; return <div className="insight-bar-wrap" key={key}><div className="insight-bar-track"><div className="insight-bar-fill" style={{ height: `${height}%` }} /></div><span>{new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(day)}</span><small>{marks}</small></div>; })}</div></div><div className="insight-footer"><Leaf size={18} /><p>Consistency is not a straight line. It is a set of returns.</p><button onClick={() => setActiveView("today")}>Back to today <ChevronRight size={15} /></button></div></section>}
       </main>
       {isAuthOpen && <div className="auth-dialog-backdrop" role="presentation" onMouseDown={() => setIsAuthOpen(false)}>
         <form className="auth-dialog" aria-modal="true" aria-labelledby="auth-dialog-title" role="dialog" onSubmit={sendMagicLink} onMouseDown={event => event.stopPropagation()}>

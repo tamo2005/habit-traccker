@@ -1,0 +1,33 @@
+.focus-clock {
+  position: relative;
+  overflow: hidden;
+  padding: 1.35rem;
+  border: 1px solid rgba(34, 36, 31, 0.14);
+  background: #f4eedf;
+}
+.focus-clock-heading, .clock-controls, .clock-duration-controls { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.focus-clock-heading h2 { margin: .2rem 0 0; font-size: clamp(1.35rem, 2vw, 1.85rem); letter-spacing: -.055em; }
+.focus-mode-tag { padding: .32rem .5rem; border: 1px solid rgba(34,36,31,.18); color: #20231f; font-size: .66rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.clock-stage { position: relative; display: grid; place-items: center; min-height: 14rem; margin: .7rem 0 .25rem; }
+.clock-dial { position: relative; z-index: 1; display: grid; place-items: center; width: 12.5rem; aspect-ratio: 1; border-radius: 50%; padding: .55rem; box-shadow: inset 0 0 0 1px rgba(34,36,31,.1); }
+.clock-center { display: grid; align-content: center; justify-items: center; width: 100%; height: 100%; border-radius: 50%; background: #f4eedf; text-align: center; }
+.clock-center span, .clock-center small { color: #6a695f; font-size: .62rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.clock-center strong { margin: .3rem 0; color: #20231f; font-size: 2.4rem; letter-spacing: -.075em; line-height: 1; }
+.focus-clock-note { margin: .25rem 0 1rem; color: #6a695f; font-size: .84rem; line-height: 1.45; }
+.clock-controls { justify-content: flex-start; }
+.clock-primary, .clock-icon-button { display: inline-flex; align-items: center; justify-content: center; min-height: 2.5rem; border: 1px solid rgba(34,36,31,.2); font-family: inherit; font-weight: 700; cursor: pointer; transition: transform 160ms cubic-bezier(.23,1,.32,1), background 160ms cubic-bezier(.23,1,.32,1); }
+.clock-primary { gap: .48rem; padding: 0 .85rem; background: #20231f; color: #fff8eb; }
+.clock-icon-button { width: 2.5rem; background: transparent; color: #20231f; }
+.clock-primary:hover, .clock-icon-button:hover { transform: translateY(-1px); background: #e86a33; color: #20231f; }
+.clock-primary:active, .clock-icon-button:active { transform: scale(.97); }
+.clock-duration-controls { margin-top: 1rem; padding-top: .8rem; border-top: 1px solid rgba(34,36,31,.12); justify-content: flex-start; }
+.clock-duration-controls label { color: #67665e; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.clock-duration-controls input { width: 3.2rem; margin-left: .25rem; padding: .28rem; border: 1px solid rgba(34,36,31,.2); background: #fffaf0; color: #20231f; font: inherit; text-align: center; }
+.clock-duration-controls span { color: #77746b; }
+.break-orbit { position: absolute; width: 13.5rem; aspect-ratio: 1; border: 1px dashed rgba(51, 92, 63, .32); border-radius: 50%; opacity: 0; pointer-events: none; }
+.break-orbit i { position: absolute; display: block; width: .55rem; height: .55rem; border-radius: 50%; background: #557260; box-shadow: 0 0 0 .25rem rgba(85,114,96,.13); }
+.break-orbit i:nth-child(1) { top: -.28rem; left: 50%; }.break-orbit i:nth-child(2) { right: 1.7rem; bottom: 1.25rem; }.break-orbit i:nth-child(3) { bottom: 2rem; left: 1.45rem; }
+.focus-clock.is-break { background: #e6ede5; }.focus-clock.is-break .clock-center { background: #e6ede5; }.focus-clock.is-break .focus-mode-tag { border-color: rgba(51,92,63,.35); color: #335c3f; }.focus-clock.is-break .break-orbit { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) { .focus-clock.is-break .break-orbit { animation: break-orbit 9s linear infinite; }.focus-clock.is-break .break-orbit i { animation: break-pulse 1.8s ease-in-out infinite alternate; } }
+@keyframes break-orbit { to { transform: rotate(360deg); } } @keyframes break-pulse { from { transform: scale(.82); opacity: .55; } to { transform: scale(1.2); opacity: 1; } }
+@media (max-width: 700px) { .focus-clock { padding: 1.15rem; }.clock-stage { min-height: 12rem; }.clock-dial { width: 10.8rem; }.clock-duration-controls { flex-wrap: wrap; } }
