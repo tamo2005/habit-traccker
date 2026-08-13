@@ -35,3 +35,12 @@
 - [ ] Browser-test sign-in, cloud habit creation and persistence after refresh, and sign-out.
 - [x] Browser-test play, pause, mute, and volume controls for the focus-sound loop.
 - [ ] Configure the public runtime and OAuth callback, then complete the final end-to-end sign-in and cloud-persistence test on that host.
+
+## Vercel full-stack migration
+
+- [x] Identify the minimum Vercel serverless entrypoint and environment requirements for the existing Express and tRPC backend.
+- [x] Add a Vercel-compatible API entrypoint and update the deployment configuration.
+- [ ] Configure a managed production database and OAuth redirect URL for the Vercel hostname.
+- [ ] Deploy the full-stack update and complete the public authenticated persistence test.
+- [ ] Protect `/api/*` from the SPA fallback rewrite and verify the Vercel API and OAuth routes resolve correctly.
+- [ ] Browser-test public sign-in and cloud persistence after the Vercel runtime settings are configured.
