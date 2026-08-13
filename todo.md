@@ -8,6 +8,6 @@
 
 ## Public repository migration
 
-- [ ] Create the public repository named `habit-traccker`.
-- [ ] Push the completed application to the new public repository.
+- [x] Create the public repository named `habit-traccker`.
+- [x] Push the completed application to the new public repository.
 - [ ] Verify the new repository URL and default branch.
