@@ -42,3 +42,21 @@ create policy "Users manage their own completions" on public.habit_completions
     auth.uid() = user_id
     and exists (select 1 from public.habits where habits.id = habit_id and habits.user_id = auth.uid())
   );
+
+-- Planned tasks power the focus workspace. Each row belongs to one authenticated user.
+create table if not exists public.planned_tasks (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  title text not null check (char_length(trim(title)) between 1 and 160),
+  priority text not null check (priority in ('high', 'medium', 'low')),
+  scheduled_time time without time zone not null,
+  completed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists planned_tasks_user_schedule_idx on public.planned_tasks (user_id, scheduled_time, created_at);
+alter table public.planned_tasks enable row level security;
+drop policy if exists "Users manage their own planned tasks" on public.planned_tasks;
+create policy "Users manage their own planned tasks" on public.planned_tasks
+  for all to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);

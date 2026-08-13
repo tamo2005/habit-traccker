@@ -53,3 +53,27 @@ On 13 August 2026, the approved transfer of the branded media completed through 
 Direct browser validation confirmed that the public `signal-flag-logo.png` and `signal-focus-card.png` object URLs render correctly from the `habit-assets` bucket. The production bundle now references this same public URL base instead of project-local managed-storage routes.
 
 The updated local project passed all six Vitest assertions, a standalone TypeScript check, and `vite build`. The desktop and mobile development previews both rendered the Supabase-hosted logo, header artwork, and focus-card illustration successfully. Vite is configured to expose `SUPABASE_URL` and `NEXT_PUBLIC_*` variables to the browser bundle, matching the names injected by the linked Vercel integration.
+
+Commit `5162d03` (`feat: migrate habit sync to Supabase`) was pushed to `tamo2005/habit-traccker` on `main`. An initial production check immediately after the push still returned the prior bundle, identified by its `/manus-storage/...` media URLs. Vercel’s build propagation or repository linkage must therefore be confirmed before final production acceptance checks can proceed.
+
+Vercel subsequently confirmed a successful Production deployment for commit `5162d03`. The deployment completed in 31 seconds, is marked **Ready** and **Current**, and is assigned to `habit-traccker-gamma.vercel.app` as well as the deployment-specific Vercel domain. The public host can now be rechecked against the newly built static bundle.
+
+The first navigation to the current production domain after deployment returned the rendered application controls, including the sign-in and focus-sound controls. The browser’s screenshot transfer then reset the inspection tab to `about:blank`, so a clean production reload is still required to confirm the exact asset URLs and authenticated cloud workflow in the deployed browser session.
+
+A clean production reload with the deployed build identifier confirmed the release now renders the logo, paper illustration, and focus-card artwork from the public `habit-assets` Supabase Storage URLs, not `/manus-storage` routes. The deployed **Sign in to sync** action opens the passwordless **Save the signal** dialog with an email-address input and a **Send secure sign-in link** control. No email was submitted during this interface validation.
+
+With the user’s explicit confirmation, the production passwordless form was submitted for the user-provided email address. The interface entered its **Sending…** state; the request outcome and the secure-link return flow remain to be confirmed before cloud persistence is marked accepted.
+
+The deployed form then closed without showing an error, which is the application’s success path after Supabase accepts a magic-link request. The remaining validation requires the user to open the received secure link, returning to the Vercel host with an authenticated Supabase session, before private habit CRUD, refresh persistence, and sign-out can be tested.
+
+The user confirmed that they opened the secure link and that the sign-in flow works in their browser. A subsequent check from the isolated sandbox browser correctly remained signed out, confirming that this test context is separate from the user’s authenticated session; it is therefore not suitable for exercising the user’s private cloud data without an explicit shared-browser session.
+
+The current production page loads `assets/index-CJOaH90R.js`, the static bundle built for commit `5162d03`, and the browser console contained no active application, Supabase, or public-media errors during the production check.
+
+After a clean Vite restart, the local preview loaded successfully with no new module-resolution diagnostics. The media catalog file was present, the `@` alias resolved to `client/src`, and the local page rendered the Supabase-hosted logo, paper illustration, and focus-card artwork. Its favicon and audio element both resolve to public `habit-assets` URLs; the focus audio reported `readyState: 4` with no media error.
+
+For the planning-workspace extension, the actual linked Supabase SQL Editor is available at `https://supabase.com/dashboard/project/dsglpcmxnbbixsmevzsh/sql/new` with the **Primary Database** selected and the `postgres` role. The managed project database tool remains the retired template’s TiDB database and cannot apply PostgreSQL/Supabase DDL; planned-task schema migrations must therefore run in this linked Supabase editor.
+
+The existing private SQL snippet in that Supabase editor contains the successfully applied habits and completions schema. The new planned-task migration is additive, uses `create table if not exists`, and does not modify or remove existing user data.
+
+On 13 August 2026, the `planned_tasks` migration completed successfully in the linked Supabase **Primary Database**. The new table stores `title`, constrained `priority`, scheduled time, optional completion timestamp, and an authenticated `user_id`; it has an owner-scoped index and row-level policy that permits each authenticated user to manage only their own planned tasks.

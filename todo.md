@@ -69,10 +69,36 @@
 - [ ] Verify and document that remaining Manus authentication, database, and server code is removed or isolated from the Vercel/Supabase app path.
 - [ ] Fix the obsolete development-server runtime error caused by the unused server entrypoint.
 - [x] Run and record successful tests, build, and development preview checks for the Supabase migration.
-- [ ] Repair the logo and focus-illustration asset references so all branded imagery loads in the Vite preview and Vercel deployment.
+- [x] Repair the logo and focus-illustration asset references so all branded imagery loads in the Vite preview and Vercel deployment.
 
 ## Supabase public media
 
 - [x] Create a public Supabase Storage bucket for the habit-tracker’s branded media.
 - [x] Upload the logo, editorial illustrations, and focus-music loop to the public bucket.
-- [ ] Replace the managed-project asset paths with Supabase public media URLs and verify all assets load locally and on Vercel.
+- [x] Replace the managed-project asset paths with Supabase public media URLs and verify all assets load locally and on Vercel.
+
+## Final local media validation
+
+- [x] Confirm `client/src/lib/assets.ts` is present and the `@/lib/assets` import resolves after a clean Vite restart.
+- [x] Re-check the local preview for the Supabase-hosted logo, header illustration, focus card, favicon, and focus audio without runtime import errors.
+
+## Planning workspace and focus clock
+
+- [ ] Define a task model with title, priority, scheduled time, and completion state that works locally and with signed-in cloud storage.
+- [x] Add a public landing page that presents Signal / Streak and routes visitors to the workspace.
+- [x] Add a planning workspace where users can inspect and complete scheduled tasks.
+- [x] Add bulk task creation from a JSON file and the `task:priority:time` text format, with validation and import feedback.
+- [x] Add an accessible focus clock with configurable focus and break durations, start/pause/reset controls, and completion alarm.
+- [x] Add a deliberate break-mode animation that respects reduced-motion preferences.
+- [x] Add focused tests for import parsing and focus-clock state transitions.
+- [ ] Verify the new experience in desktop and mobile previews, then deploy the enhancement to Vercel.
+- [x] Implement local-first planned-task persistence using the new task model.
+- [ ] Add signed-in Supabase CRUD for `planned_tasks` and map cloud rows into workspace state.
+- [ ] Verify local task persistence and authenticated task load/save behavior before closing the task-model work.
+- [x] Fix concise `task:priority:time` parsing so standard HH:MM times are accepted during bulk import.
+- [x] Include client-side utility tests in the Vitest configuration so planning-import coverage runs in the standard suite.
+- [x] Browser-test JSON file import with valid and invalid entries, confirming successful tasks and targeted validation feedback.
+- [ ] Inspect and test signed-in `planned_tasks` read, create, completion toggle, delete, and refresh persistence through the workspace UI.
+- [x] Correct focus-clock primary control labels so start and resume actions describe the current interval accurately.
+- [x] Add component-level FocusClock tests for start, pause, reset, switching modes, duration changes, and interval completion.
+- [x] Re-verify focus-clock labels and controls in the browser after the correction.
