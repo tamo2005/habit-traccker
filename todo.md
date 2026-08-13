@@ -113,5 +113,5 @@
 - [x] Make timer state, labels, alarms, and break animations correctly reflect the selected mode.
 - [x] Add a user-selected personal-music file option with local-only playback and clear privacy guidance.
 - [ ] Test the integrated task, timer, and personal-music flows in desktop and mobile previews and deploy the update.
-- [ ] Commit and push the verified unified-task, clock, and personal-music enhancement to the public GitHub repository.
+- [x] Commit and push the verified unified-task, clock, and personal-music enhancement to the public GitHub repository.
 - [x] Restore accessible mobile navigation, sign-in, and personal-music controls in the compact workspace header.
