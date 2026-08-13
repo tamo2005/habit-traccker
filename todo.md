@@ -14,7 +14,7 @@
 
 ## Vercel deployment
 
-- [ ] Inspect the project’s Vercel compatibility and build settings.
-- [ ] Prepare any required Vercel configuration.
-- [ ] Connect `tamo2005/habit-traccker` to Vercel and deploy it.
-- [ ] Verify the production URL and core app flow.
+- [x] Inspect the project’s Vercel compatibility and build settings.
+- [x] Prepare any required Vercel configuration.
+- [x] Connect `tamo2005/habit-traccker` to Vercel and deploy it.
+- [x] Verify the production URL and core app flow.
