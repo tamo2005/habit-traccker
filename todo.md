@@ -121,4 +121,4 @@
 - [x] Reproduce the preset-task deletion flow and identify why it returns the user to the page entry state.
 - [x] Fix deletion so the active dashboard view and surrounding UI state remain intact.
 - [x] Add regression coverage for an intentionally empty cloud board and validate the corrected preset-deletion browser flow.
-- [ ] Commit and push the verified preset-task deletion correction to GitHub.
+- [x] Commit and push the verified preset-task deletion correction to GitHub.
