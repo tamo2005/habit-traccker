@@ -10,4 +10,11 @@
 
 - [x] Create the public repository named `habit-traccker`.
 - [x] Push the completed application to the new public repository.
-- [ ] Verify the new repository URL and default branch.
+- [x] Verify the new repository URL and default branch.
+
+## Vercel deployment
+
+- [ ] Inspect the project’s Vercel compatibility and build settings.
+- [ ] Prepare any required Vercel configuration.
+- [ ] Connect `tamo2005/habit-traccker` to Vercel and deploy it.
+- [ ] Verify the production URL and core app flow.
