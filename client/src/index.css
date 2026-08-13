@@ -307,3 +307,15 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   .mobile-topbar .button { width: 34px; height: 34px; }
   .sync-status { max-width: 210px; }
 }
+
+.auth-dialog-backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 20px; background: rgba(32,35,31,.62); backdrop-filter: blur(4px); }
+.auth-dialog { position: relative; width: min(100%, 410px); padding: 29px; border: 1px solid #d8d4c9; background: #fbfaf6; box-shadow: 12px 12px 0 #20231f; animation: panel-in 220ms cubic-bezier(.23,1,.32,1); }
+.auth-dialog h2 { margin: 10px 0 11px; color: #20231f; font-family: "Space Grotesk", sans-serif; font-size: 31px; letter-spacing: -.07em; }
+.auth-dialog > p:not(.eyebrow) { margin: 0 0 21px; color: #686c63; font-size: 13px; line-height: 1.55; }
+.auth-dialog .field-label input { width: 100%; min-height: 42px; margin-top: 1px; padding: 0 11px; border: 1px solid #d8d4c9; background: #f4f1ea; color: #20231f; font-size: 14px; letter-spacing: 0; text-transform: none; }
+.auth-dialog-close { position: absolute; top: 13px; right: 13px; }
+
+@media (max-width: 480px) {
+  .auth-dialog { padding: 25px 20px 21px; box-shadow: 7px 7px 0 #20231f; }
+  .auth-dialog h2 { font-size: 28px; }
+}

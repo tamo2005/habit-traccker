@@ -1,8 +1,8 @@
 /* Signal / Streak: a local-first habit board that syncs private data after sign-in. */
-import { useAuth } from "@/_core/hooks/useAuth";
-import { startLogin } from "@/const";
-import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
+import { habitAssets } from "@/lib/assets";
+import { mapCloudHabit, type Habit, type HabitColor } from "@/lib/habitData";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import {
   ArrowUpRight,
   BarChart3,
@@ -24,21 +24,14 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import type { User } from "@supabase/supabase-js";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-type HabitColor = "saffron" | "moss" | "clay" | "ink";
 type View = "today" | "insights";
-type Habit = {
-  id: number | string;
-  name: string;
-  cadence: string;
-  color: HabitColor;
-  completedDates: string[];
-};
 
 const STORAGE_KEY = "signal-streak-habits";
-const MUSIC_URL = "/manus-storage/habit-signal-loop_edee2669.mp3";
+const MUSIC_URL = habitAssets.focusSound;
 const starterHabits: Habit[] = [
   { id: "movement", name: "Morning movement", cadence: "Daily", color: "saffron", completedDates: [] },
   { id: "reading", name: "Read 10 pages", cadence: "Daily", color: "moss", completedDates: [] },
@@ -107,13 +100,11 @@ function progressLabel(done: number, total: number) {
 }
 
 export default function Home() {
-  const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
-  const utils = trpc.useUtils();
-  const habitsQuery = trpc.habits.list.useQuery(undefined, { enabled: isAuthenticated, retry: false });
-  const createHabitMutation = trpc.habits.create.useMutation();
-  const toggleCompletionMutation = trpc.habits.toggleCompletion.useMutation();
-  const removeHabitMutation = trpc.habits.remove.useMutation();
-
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [cloudLoading, setCloudLoading] = useState(false);
+  const [cloudSaving, setCloudSaving] = useState(false);
+  const [cloudHabits, setCloudHabits] = useState<Habit[]>([]);
   const [localHabits, setLocalHabits] = useState<Habit[]>(getInitialHabits);
   const [activeView, setActiveView] = useState<View>("today");
   const [isAdding, setIsAdding] = useState(false);
@@ -123,9 +114,14 @@ export default function Home() {
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
   const [musicMuted, setMusicMuted] = useState(false);
   const [musicVolume, setMusicVolume] = useState(0.34);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [authEmail, setAuthEmail] = useState("");
+  const [isSendingLink, setIsSendingLink] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  const habits = (isAuthenticated ? habitsQuery.data ?? [] : localHabits) as Habit[];
+  const isAuthenticated = Boolean(user);
+  const userLabel = user?.user_metadata?.full_name ?? user?.email?.split("@")[0] ?? "Signed in";
+  const habits = isAuthenticated ? cloudHabits : localHabits;
   const today = useMemo(() => new Date(), []);
   const todayKey = useMemo(() => dateKey(today), [today]);
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, index) => dateAtOffset(index - 6)), []);
@@ -137,7 +133,60 @@ export default function Home() {
   const allTimeMarks = habits.reduce((total, habit) => total + habit.completedDates.length, 0);
   const longestCurrentStreak = habits.reduce((max, habit) => Math.max(max, habitStreak(habit)), 0);
   const activeDays = new Set(habits.flatMap(habit => habit.completedDates)).size;
-  const isSaving = createHabitMutation.isPending || toggleCompletionMutation.isPending || removeHabitMutation.isPending;
+  const isSaving = cloudSaving;
+
+  const loadCloudHabits = useCallback(async (userId: string) => {
+    const client = supabase;
+    if (!client) return;
+    setCloudLoading(true);
+    const selectHabits = () => client
+      .from("habits")
+      .select("id, name, cadence, color, habit_completions(completed_on)")
+      .order("created_at", { ascending: true });
+
+    let { data, error } = await selectHabits();
+    if (!error && !data?.length) {
+      const starterRows = starterHabits.map(({ name, cadence, color }) => ({ user_id: userId, name, cadence, color }));
+      const { error: seedError } = await client.from("habits").insert(starterRows);
+      if (seedError) error = seedError;
+      else ({ data, error } = await selectHabits());
+    }
+    if (error) {
+      toast.error("Cloud board could not load.", { description: "Your local workspace is still available while setup completes." });
+      setCloudHabits([]);
+    } else {
+      setCloudHabits((data ?? []).map(mapCloudHabit));
+    }
+    setCloudLoading(false);
+  }, []);
+
+  useEffect(() => {
+    const client = supabase;
+    if (!client) {
+      setAuthLoading(false);
+      return;
+    }
+    let active = true;
+    void client.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      const nextUser = data.session?.user ?? null;
+      setUser(nextUser);
+      setAuthLoading(false);
+      if (nextUser) void loadCloudHabits(nextUser.id);
+    });
+    const { data: listener } = client.auth.onAuthStateChange((_event, session) => {
+      if (!active) return;
+      const nextUser = session?.user ?? null;
+      setUser(nextUser);
+      setAuthLoading(false);
+      if (nextUser) void loadCloudHabits(nextUser.id);
+      else setCloudHabits([]);
+    });
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
+  }, [loadCloudHabits]);
 
   useEffect(() => {
     if (!isAuthenticated) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(localHabits));
@@ -149,19 +198,22 @@ export default function Home() {
     audio.volume = musicMuted ? 0 : musicVolume;
   }, [musicMuted, musicVolume]);
 
-  async function refreshCloudHabits() {
-    await utils.habits.list.invalidate();
-  }
-
   async function toggleHabit(habit: Habit) {
     const wasComplete = habit.completedDates.includes(todayKey);
-    if (isAuthenticated) {
+    if (isAuthenticated && supabase && user) {
       try {
-        await toggleCompletionMutation.mutateAsync({ habitId: Number(habit.id), completedOn: todayKey });
-        await refreshCloudHabits();
+        setCloudSaving(true);
+        const request = wasComplete
+          ? supabase.from("habit_completions").delete().eq("habit_id", habit.id).eq("completed_on", todayKey)
+          : supabase.from("habit_completions").insert({ habit_id: habit.id, user_id: user.id, completed_on: todayKey });
+        const { error } = await request;
+        if (error) throw error;
+        await loadCloudHabits(user.id);
       } catch {
         toast.error("That mark could not be saved. Please try again.");
         return;
+      } finally {
+        setCloudSaving(false);
       }
     } else {
       setLocalHabits(current => current.map(item => item.id !== habit.id ? item : {
@@ -181,13 +233,20 @@ export default function Home() {
       toast("File your first habit to start the signal.");
       return;
     }
-    if (isAuthenticated) {
+    if (isAuthenticated && supabase && user) {
       try {
-        await Promise.all(remaining.map(habit => toggleCompletionMutation.mutateAsync({ habitId: Number(habit.id), completedOn: todayKey })));
-        await refreshCloudHabits();
+        setCloudSaving(true);
+        const { error } = await supabase.from("habit_completions").upsert(
+          remaining.map(habit => ({ habit_id: habit.id, user_id: user.id, completed_on: todayKey })),
+          { onConflict: "habit_id,completed_on", ignoreDuplicates: true },
+        );
+        if (error) throw error;
+        await loadCloudHabits(user.id);
       } catch {
         toast.error("Some marks could not be saved. Please try again.");
         return;
+      } finally {
+        setCloudSaving(false);
       }
     } else {
       setLocalHabits(current => current.map(habit => habit.completedDates.includes(todayKey) ? habit : { ...habit, completedDates: [...habit.completedDates, todayKey] }));
@@ -196,13 +255,17 @@ export default function Home() {
   }
 
   async function deleteHabit(habit: Habit) {
-    if (isAuthenticated) {
+    if (isAuthenticated && supabase && user) {
       try {
-        await removeHabitMutation.mutateAsync({ habitId: Number(habit.id) });
-        await refreshCloudHabits();
+        setCloudSaving(true);
+        const { error } = await supabase.from("habits").delete().eq("id", habit.id);
+        if (error) throw error;
+        await loadCloudHabits(user.id);
       } catch {
         toast.error("That habit could not be removed. Please try again.");
         return;
+      } finally {
+        setCloudSaving(false);
       }
     } else {
       setLocalHabits(current => current.filter(item => item.id !== habit.id));
@@ -217,13 +280,17 @@ export default function Home() {
       toast.error("Give the habit a name first.");
       return;
     }
-    if (isAuthenticated) {
+    if (isAuthenticated && supabase && user) {
       try {
-        await createHabitMutation.mutateAsync({ name, cadence: newHabitCadence, color: newHabitColor });
-        await refreshCloudHabits();
+        setCloudSaving(true);
+        const { error } = await supabase.from("habits").insert({ user_id: user.id, name, cadence: newHabitCadence, color: newHabitColor });
+        if (error) throw error;
+        await loadCloudHabits(user.id);
       } catch {
         toast.error("That habit could not be saved. Please try again.");
         return;
+      } finally {
+        setCloudSaving(false);
       }
     } else {
       setLocalHabits(current => [...current, { id: makeId(), name, cadence: newHabitCadence, color: newHabitColor, completedDates: [] }]);
@@ -252,9 +319,36 @@ export default function Home() {
     }
   }
 
+  function openSignIn() {
+    if (!isSupabaseConfigured) {
+      toast.error("Cloud sign-in is not configured in this preview.", { description: "Use the Vercel deployment after the next build to sync across devices." });
+      return;
+    }
+    setIsAuthOpen(true);
+  }
+
+  async function sendMagicLink(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase || !authEmail.trim()) return;
+    setIsSendingLink(true);
+    const { error } = await supabase.auth.signInWithOtp({
+      email: authEmail.trim(),
+      options: { emailRedirectTo: window.location.origin },
+    });
+    setIsSendingLink(false);
+    if (error) {
+      toast.error("Sign-in link could not be sent.", { description: error.message });
+      return;
+    }
+    setIsAuthOpen(false);
+    toast.success("Check your inbox.", { description: "Open the secure link to return to your private cloud board." });
+  }
+
   async function handleLogout() {
     try {
-      await logout();
+      if (!supabase) return;
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
       toast("Signed out.", { description: "This browser is back in its device-only workspace." });
     } catch {
       toast.error("Sign out did not complete. Please try again.");
@@ -269,7 +363,7 @@ export default function Home() {
       <audio ref={audioRef} src={MUSIC_URL} loop preload="metadata" onPause={() => setIsMusicPlaying(false)} onPlay={() => setIsMusicPlaying(true)} />
       <aside className="side-rail">
         <div className="brand-lockup">
-          <img src="/manus-storage/signal-flag-logo_707eb396.png" alt="Signal / Streak orange flag mark" className="brand-mark" />
+          <img src={habitAssets.logo} alt="Signal / Streak orange flag mark" className="brand-mark" />
           <div><p className="brand-name">Habit<span>.</span></p><p className="brand-subtitle">signal / streak</p></div>
         </div>
         <div className="rail-rule" />
@@ -297,29 +391,29 @@ export default function Home() {
 
         <section className="account-panel" aria-live="polite">
           {authLoading ? <p className="account-status">Checking your workspace…</p> : isAuthenticated ? <>
-            <div className="account-copy"><span className="account-initial">{user?.name?.charAt(0).toUpperCase() ?? "H"}</span><div><strong>{user?.name ?? "Signed in"}</strong><small>Cloud sync on</small></div></div>
+            <div className="account-copy"><span className="account-initial">{userLabel.charAt(0).toUpperCase()}</span><div><strong>{userLabel}</strong><small>Cloud sync on</small></div></div>
             <button className="rail-auth-button" onClick={handleLogout}><LogOut size={14} /> Sign out</button>
           </> : <>
             <p className="account-status">Your board is saved on this device.</p>
-            <button className="rail-auth-button is-sign-in" onClick={() => startLogin()}><LogIn size={14} /> Sign in to sync</button>
+            <button className="rail-auth-button is-sign-in" onClick={openSignIn}><LogIn size={14} /> Sign in to sync</button>
           </>}
         </section>
         <div className="rail-footer"><div className="rail-footer-icon"><Leaf size={15} /></div><p>Small rituals.<br /><strong>Clearer weeks.</strong></p></div>
       </aside>
 
       <div className="mobile-topbar">
-        <div className="brand-lockup"><img src="/manus-storage/signal-flag-logo_707eb396.png" alt="Signal / Streak orange flag mark" className="brand-mark" /><p className="brand-name">Habit<span>.</span></p></div>
+        <div className="brand-lockup"><img src={habitAssets.logo} alt="Signal / Streak orange flag mark" className="brand-mark" /><p className="brand-name">Habit<span>.</span></p></div>
         <div className="mobile-actions">
           <Button size="icon" variant="outline" aria-label={isMusicPlaying ? "Pause focus sound" : "Play focus sound"} onClick={toggleMusic}>{isMusicPlaying ? <Pause size={18} /> : <Music2 size={18} />}</Button>
-          {isAuthenticated ? <Button size="icon" variant="outline" aria-label="Sign out" onClick={handleLogout}><LogOut size={17} /></Button> : <Button size="icon" variant="outline" aria-label="Sign in to sync" onClick={() => startLogin()}><LogIn size={17} /></Button>}
+          {isAuthenticated ? <Button size="icon" variant="outline" aria-label="Sign out" onClick={handleLogout}><LogOut size={17} /></Button> : <Button size="icon" variant="outline" aria-label="Sign in to sync" onClick={openSignIn}><LogIn size={17} /></Button>}
           <Button size="icon" variant="outline" aria-label="Add habit" onClick={() => setIsAdding(true)}><Plus size={18} /></Button>
         </div>
       </div>
 
       <main className="main-canvas">
         <header className="dashboard-header">
-          <img src="/manus-storage/signal-paper-field_b7fb1512.png" alt="" className="header-art" />
-          <div className="header-copy"><p className="eyebrow">01 / DAILY SIGNAL</p><p className="header-date">{readableDate(today)}</p><h1>Keep the<br /><em>signal moving.</em></h1><p className="header-description">A quiet board for the small things that make a week feel like yours.</p><p className="sync-status">{isAuthenticated ? "Private cloud board · syncing" : "Device-only board · sign in to sync"}</p></div>
+          <img src={habitAssets.paperField} alt="" className="header-art" />
+          <div className="header-copy"><p className="eyebrow">01 / DAILY SIGNAL</p><p className="header-date">{readableDate(today)}</p><h1>Keep the<br /><em>signal moving.</em></h1><p className="header-description">A quiet board for the small things that make a week feel like yours.</p><p className="sync-status">{isAuthenticated ? (cloudLoading ? "Private cloud board · syncing" : "Private cloud board · saved") : isSupabaseConfigured ? "Device-only board · sign in to sync" : "Device-only board · cloud setup in progress"}</p></div>
           <div className="header-metric"><span className="metric-label">Today</span><strong>{completedToday}<small>/{habits.length}</small></strong><span className="metric-caption">marked</span></div>
         </header>
 
@@ -333,20 +427,30 @@ export default function Home() {
           </section>
           <div className="workspace-grid">
             <section className="habits-panel" aria-labelledby="habits-heading">
-              <div className="panel-heading"><div><p className="eyebrow">03 / YOUR MARKS</p><h2 id="habits-heading">The daily list</h2></div><p className="panel-status">{habitsQuery.isFetching && isAuthenticated ? "Syncing marks…" : progressLabel(completedToday, habits.length)}</p></div>
+              <div className="panel-heading"><div><p className="eyebrow">03 / YOUR MARKS</p><h2 id="habits-heading">The daily list</h2></div><p className="panel-status">{cloudLoading && isAuthenticated ? "Syncing marks…" : progressLabel(completedToday, habits.length)}</p></div>
               {habits.length ? <div className="habit-list">{habits.map((habit, index) => {
                 const complete = habit.completedDates.includes(todayKey); const streak = habitStreak(habit);
                 return <article className={`habit-row ${complete ? "is-complete" : ""}`} key={habit.id} style={{ animationDelay: `${index * 45}ms` }}><span className={`habit-index index-${habit.color}`}>0{index + 1}</span><div className="habit-copy"><h3>{habit.name}</h3><p><span className={`color-dot dot-${habit.color}`} />{habit.cadence}{streak > 0 ? ` · ${streak} day${streak === 1 ? "" : "s"} running` : " · Ready when you are"}</p></div><button disabled={isSaving} className={`check-tile ${complete ? "is-complete" : ""}`} aria-pressed={complete} aria-label={`${complete ? "Unmark" : "Mark"} ${habit.name}`} onClick={() => void toggleHabit(habit)}>{complete ? <Check size={19} strokeWidth={2.5} /> : <span className="mark-glyph" aria-hidden="true"><i /><i /><i /></span>}</button><button disabled={isSaving} className="icon-button delete-button" aria-label={`Remove ${habit.name}`} onClick={() => void deleteHabit(habit)}><Trash2 size={15} /></button></article>;
               })}</div> : <div className="empty-state"><Flag size={24} /><h3>A clear board.</h3><p>File one habit to give today a place to begin.</p><button onClick={() => setIsAdding(true)}>Add your first habit <ChevronRight size={15} /></button></div>}
             </section>
             <aside className="focus-column">
-              <section className="focus-card"><img src="/manus-storage/signal-focus-card_98038752.png" alt="Abstract signal lines flowing toward a saffron tile" /><div className="focus-card-content"><p className="eyebrow eyebrow-light">FOCUS NOTE</p><h2>{completedToday === habits.length && habits.length ? "The board is clear." : "Keep it small."}</h2><p>{completedToday === habits.length && habits.length ? "You made every mark that mattered today." : "The next mark is closer than it looks."}</p><button disabled={isSaving} className="text-action" onClick={() => void markAllRemaining()}>{habits.length && completedToday === habits.length ? "Review the week" : "Mark remaining"} <ArrowUpRight size={15} /></button></div></section>
+              <section className="focus-card"><img src={habitAssets.focusCard} alt="Abstract signal lines flowing toward a saffron tile" /><div className="focus-card-content"><p className="eyebrow eyebrow-light">FOCUS NOTE</p><h2>{completedToday === habits.length && habits.length ? "The board is clear." : "Keep it small."}</h2><p>{completedToday === habits.length && habits.length ? "You made every mark that mattered today." : "The next mark is closer than it looks."}</p><button disabled={isSaving} className="text-action" onClick={() => void markAllRemaining()}>{habits.length && completedToday === habits.length ? "Review the week" : "Mark remaining"} <ArrowUpRight size={15} /></button></div></section>
               {isAdding && <form className="add-panel" onSubmit={event => void addHabit(event)}><div className="add-panel-heading"><div><p className="eyebrow">FILE A NEW MARK</p><h3>Add a habit</h3></div><button type="button" className="icon-button" aria-label="Close add habit form" onClick={() => setIsAdding(false)}><X size={17} /></button></div><label className="field-label" htmlFor="habit-name">What do you want to keep?<input id="habit-name" autoFocus value={newHabitName} onChange={event => setNewHabitName(event.target.value)} placeholder="e.g. Take a short walk" /></label><div className="field-row"><label className="field-label" htmlFor="habit-cadence">Cadence<select id="habit-cadence" value={newHabitCadence} onChange={event => setNewHabitCadence(event.target.value)}><option>Daily</option><option>Weeknights</option><option>Three times a week</option><option>Weekends</option></select></label><fieldset><legend className="field-label">Signal</legend><div className="color-picker">{colorOptions.map(option => <button type="button" key={option.id} aria-label={option.label} className={`color-choice dot-${option.id} ${newHabitColor === option.id ? "is-selected" : ""}`} onClick={() => setNewHabitColor(option.id)} />)}</div></fieldset></div><button disabled={isSaving} className="submit-button" type="submit">{isSaving ? "Saving…" : "File habit"} <Plus size={16} /></button></form>}
               <section className="week-note"><div className="week-note-copy"><p className="eyebrow">04 / A QUICK LOOK</p><h3>{weeklyPercent}% of your week is in motion.</h3><p>{weeklyMarks} marks across {activeDays} active {activeDays === 1 ? "day" : "days"}.</p></div><div className="week-note-art" aria-hidden="true"><span /><span /><span /><span /></div></section>
             </aside>
           </div>
         </> : <section className="insights-view" aria-labelledby="insights-heading"><div className="section-heading"><div><p className="eyebrow">02 / INSIGHTS</p><h2 id="insights-heading">The pattern, over time.</h2></div><Button className="add-habit-button" onClick={() => { setActiveView("today"); setIsAdding(true); }}><Plus size={16} /> Add habit</Button></div><div className="insight-stats"><div className="insight-stat"><span className="eyebrow">WEEKLY SIGNAL</span><strong>{weeklyPercent}<small>%</small></strong><p>{weeklyMarks} total marks in the last seven days.</p></div><div className="insight-stat"><span className="eyebrow">CURRENT RUN</span><strong>{longestCurrentStreak}<small> days</small></strong><p>Your longest active streak right now.</p></div><div className="insight-stat"><span className="eyebrow">ALL-TIME MARKS</span><strong>{allTimeMarks}</strong><p>{isAuthenticated ? "Every completed action in your private cloud board." : "Every completed action saved locally."}</p></div></div><div className="insight-chart"><div className="panel-heading"><div><p className="eyebrow">LAST SEVEN DAYS</p><h3>Where the signal showed up</h3></div><Sparkles size={18} /></div><div className="insight-bars">{weekDays.map(day => { const key = dateKey(day); const marks = habits.reduce((count, habit) => count + (habit.completedDates.includes(key) ? 1 : 0), 0); const height = habits.length ? Math.max(10, Math.round((marks / habits.length) * 100)) : 10; return <div className="insight-bar-wrap" key={key}><div className="insight-bar-track"><div className="insight-bar-fill" style={{ height: `${height}%` }} /></div><span>{new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(day)}</span><small>{marks}</small></div>; })}</div></div><div className="insight-footer"><Leaf size={18} /><p>Consistency is not a straight line. It is a set of returns.</p><button onClick={() => setActiveView("today")}>Back to today <ChevronRight size={15} /></button></div></section>}
       </main>
+      {isAuthOpen && <div className="auth-dialog-backdrop" role="presentation" onMouseDown={() => setIsAuthOpen(false)}>
+        <form className="auth-dialog" aria-modal="true" aria-labelledby="auth-dialog-title" role="dialog" onSubmit={sendMagicLink} onMouseDown={event => event.stopPropagation()}>
+          <button className="icon-button auth-dialog-close" type="button" aria-label="Close sign-in" onClick={() => setIsAuthOpen(false)}><X size={17} /></button>
+          <p className="eyebrow">PRIVATE CLOUD BOARD</p>
+          <h2 id="auth-dialog-title">Save the signal.</h2>
+          <p>Enter your email and we will send a secure sign-in link. No password to remember.</p>
+          <label className="field-label" htmlFor="auth-email">Email address<input id="auth-email" type="email" autoComplete="email" required autoFocus value={authEmail} onChange={event => setAuthEmail(event.target.value)} placeholder="you@example.com" /></label>
+          <button className="submit-button" type="submit" disabled={isSendingLink}>{isSendingLink ? "Sending…" : "Send secure sign-in link"}<ArrowUpRight size={16} /></button>
+        </form>
+      </div>}
     </div>
   );
 }
